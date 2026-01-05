@@ -38,7 +38,7 @@ const Privacy = () => {
             <h2 className="font-display text-lg text-foreground">Your Privacy Matters</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            Mini Games Hub is designed with privacy as a core principle. 
+            MiniMind Arcade is designed with privacy as a core principle. 
             We believe games should be fun without compromising your privacy.
           </p>
         </motion.div>
@@ -86,6 +86,7 @@ const Privacy = () => {
           <p className="text-sm text-muted-foreground">
             Last updated: January 2025
           </p>
+          <p className="text-xs text-muted-foreground mt-2">Developed by maaZone</p>
         </motion.div>
       </div>
     </PageContainer>
