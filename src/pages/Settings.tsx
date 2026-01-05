@@ -92,7 +92,7 @@ const Settings = () => {
           <div className="flex items-center gap-3">
             <Info className="w-6 h-6 text-accent" />
             <div>
-              <div className="font-semibold text-foreground">Mini Games Hub</div>
+              <div className="font-semibold text-foreground">MiniMind Arcade</div>
               <div className="text-sm text-muted-foreground">Version 1.0.0</div>
             </div>
           </div>
@@ -101,6 +101,11 @@ const Settings = () => {
             No ads, no tracking, no data collection.
           </p>
         </motion.div>
+
+        {/* Footer branding */}
+        <div className="mt-6 text-center">
+          <p className="text-xs text-muted-foreground">Developed by maaZone</p>
+        </div>
       </div>
     </PageContainer>
   );

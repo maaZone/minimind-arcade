@@ -28,7 +28,7 @@ const games = [
 
 const Index = () => {
   return (
-    <PageContainer title="Mini Games">
+    <PageContainer title="MiniMind Arcade">
       <div className="px-4 space-y-3">
         {games.map((game, index) => (
           <GameCard
@@ -37,6 +37,11 @@ const Index = () => {
             delay={index * 0.1}
           />
         ))}
+      </div>
+
+      {/* Footer branding */}
+      <div className="px-4 mt-6 mb-4 text-center">
+        <p className="text-xs text-muted-foreground">Developed by maaZone</p>
       </div>
 
       {/* Decorative background elements */}
