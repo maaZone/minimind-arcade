@@ -4,7 +4,9 @@ import { ArrowLeft, RotateCcw, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '@/contexts/SettingsContext';
 
-const emojis = ['🎮', '🎯', '🎲', '🎪', '🎨', '🎭', '🎸', '🎺'];
+type GridSize = '4x4' | '5x4' | '6x4';
+
+const allEmojis = ['🎮', '🎯', '🎲', '🎪', '🎨', '🎭', '🎸', '🎺', '🎻', '🎹', '🎤', '🎧'];
 
 interface Card {
   id: number;
@@ -13,7 +15,14 @@ interface Card {
   isMatched: boolean;
 }
 
-function createCards(): Card[] {
+const gridConfig: Record<GridSize, { pairs: number; cols: number; label: string; color: string }> = {
+  '4x4': { pairs: 8, cols: 4, label: '4×4 Easy', color: 'text-green-400' },
+  '5x4': { pairs: 10, cols: 5, label: '5×4 Medium', color: 'text-yellow-400' },
+  '6x4': { pairs: 12, cols: 6, label: '6×4 Hard', color: 'text-red-400' },
+};
+
+function createCards(pairCount: number): Card[] {
+  const emojis = allEmojis.slice(0, pairCount);
   const pairs = [...emojis, ...emojis];
   return pairs
     .sort(() => Math.random() - 0.5)
@@ -28,24 +37,28 @@ function createCards(): Card[] {
 export function MemoryGame() {
   const navigate = useNavigate();
   const { playTap, vibrate } = useSettings();
-  const [cards, setCards] = useState<Card[]>(createCards());
+  const [gridSize, setGridSize] = useState<GridSize>('4x4');
+  const [showGridSelect, setShowGridSelect] = useState(true);
+  const [cards, setCards] = useState<Card[]>([]);
   const [flippedCards, setFlippedCards] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);
   const [isChecking, setIsChecking] = useState(false);
-  const [bestScore, setBestScore] = useState(() => {
-    const saved = localStorage.getItem('memoryBestScore');
-    return saved ? parseInt(saved) : Infinity;
-  });
+  const [bestScore, setBestScore] = useState<number>(Infinity);
 
   const matchedCount = cards.filter(c => c.isMatched).length;
-  const isComplete = matchedCount === cards.length;
+  const isComplete = cards.length > 0 && matchedCount === cards.length;
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`memoryBest_${gridSize}`);
+    setBestScore(saved ? parseInt(saved) : Infinity);
+  }, [gridSize]);
 
   useEffect(() => {
     if (isComplete && moves < bestScore) {
       setBestScore(moves);
-      localStorage.setItem('memoryBestScore', moves.toString());
+      localStorage.setItem(`memoryBest_${gridSize}`, moves.toString());
     }
-  }, [isComplete, moves, bestScore]);
+  }, [isComplete, moves, bestScore, gridSize]);
 
   const handleCardClick = (id: number) => {
     if (isChecking || flippedCards.length >= 2) return;
@@ -95,7 +108,7 @@ export function MemoryGame() {
   const resetGame = () => {
     playTap();
     vibrate(20);
-    setCards(createCards());
+    setCards(createCards(gridConfig[gridSize].pairs));
     setFlippedCards([]);
     setMoves(0);
     setIsChecking(false);
@@ -107,14 +120,78 @@ export function MemoryGame() {
     navigate('/');
   };
 
+  const selectGrid = (size: GridSize) => {
+    playTap();
+    vibrate(10);
+    setGridSize(size);
+    setShowGridSelect(false);
+    setCards(createCards(gridConfig[size].pairs));
+    setFlippedCards([]);
+    setMoves(0);
+  };
+
+  const changeGrid = () => {
+    playTap();
+    setShowGridSelect(true);
+  };
+
+  const config = gridConfig[gridSize];
+
   return (
     <div className="min-h-screen pb-24 safe-top">
+      {/* Grid Size Selection */}
+      <AnimatePresence>
+        {showGridSelect && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-background flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="w-full max-w-sm bg-card rounded-2xl border border-border p-6 text-center"
+            >
+              <h2 className="font-display text-2xl text-gradient mb-2">Memory Match</h2>
+              <p className="text-muted-foreground mb-6">Select Grid Size</p>
+              
+              <div className="space-y-3">
+                {(Object.keys(gridConfig) as GridSize[]).map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => selectGrid(size)}
+                    className="w-full py-4 rounded-xl bg-muted border border-border hover:border-primary/50 transition-colors"
+                  >
+                    <span className={`font-display text-lg ${gridConfig[size].color}`}>
+                      {gridConfig[size].label}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {gridConfig[size].pairs} pairs to match
+                    </p>
+                  </button>
+                ))}
+              </div>
+              
+              <button onClick={goBack} className="mt-4 text-sm text-muted-foreground">
+                ← Back to Games
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-6 pb-4">
         <button onClick={goBack} className="p-2 rounded-xl bg-card touch-target">
           <ArrowLeft className="w-6 h-6 text-muted-foreground" />
         </button>
-        <h1 className="font-display text-xl text-gradient">Memory Match</h1>
+        <div className="text-center">
+          <h1 className="font-display text-xl text-gradient">Memory Match</h1>
+          <button onClick={changeGrid} className={`text-xs ${config.color}`}>
+            {config.label} ▾
+          </button>
+        </div>
         <button onClick={resetGame} className="p-2 rounded-xl bg-card touch-target">
           <RotateCcw className="w-6 h-6 text-muted-foreground" />
         </button>
@@ -138,13 +215,16 @@ export function MemoryGame() {
 
       {/* Game Board */}
       <div className="px-4 flex justify-center">
-        <div className="grid grid-cols-4 gap-2 p-3 bg-card rounded-2xl border border-border">
+        <div 
+          className="grid gap-2 p-3 bg-card rounded-2xl border border-border"
+          style={{ gridTemplateColumns: `repeat(${config.cols}, minmax(0, 1fr))` }}
+        >
           {cards.map((card) => (
             <motion.button
               key={card.id}
               whileTap={{ scale: 0.95 }}
               onClick={() => handleCardClick(card.id)}
-              className={`w-16 h-16 rounded-xl text-2xl flex items-center justify-center
+              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl text-xl sm:text-2xl flex items-center justify-center
                 transition-all duration-300 border-2
                 ${card.isFlipped || card.isMatched 
                   ? 'bg-secondary/20 border-secondary/30' 

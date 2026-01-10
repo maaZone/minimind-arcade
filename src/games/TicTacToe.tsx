@@ -6,6 +6,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 
 type Player = 'X' | 'O' | null;
 type Board = Player[];
+type Difficulty = 'easy' | 'medium' | 'hard';
 
 const winningCombinations = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
@@ -26,40 +27,95 @@ function getEmptyCells(board: Board): number[] {
   return board.map((cell, index) => cell === null ? index : -1).filter(i => i !== -1);
 }
 
-// Simple AI: tries to win, block, or pick random
-function getAIMove(board: Board): number {
+// Minimax algorithm for hard difficulty
+function minimax(board: Board, depth: number, isMaximizing: boolean): number {
+  const winner = checkWinner(board);
+  if (winner === 'O') return 10 - depth;
+  if (winner === 'X') return depth - 10;
+  if (board.every(cell => cell !== null)) return 0;
+
   const emptyCells = getEmptyCells(board);
   
-  // Try to win
+  if (isMaximizing) {
+    let bestScore = -Infinity;
+    for (const cell of emptyCells) {
+      board[cell] = 'O';
+      bestScore = Math.max(bestScore, minimax(board, depth + 1, false));
+      board[cell] = null;
+    }
+    return bestScore;
+  } else {
+    let bestScore = Infinity;
+    for (const cell of emptyCells) {
+      board[cell] = 'X';
+      bestScore = Math.min(bestScore, minimax(board, depth + 1, true));
+      board[cell] = null;
+    }
+    return bestScore;
+  }
+}
+
+// AI move based on difficulty
+function getAIMove(board: Board, difficulty: Difficulty): number {
+  const emptyCells = getEmptyCells(board);
+  
+  if (difficulty === 'easy') {
+    // Random move
+    return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+  }
+  
+  if (difficulty === 'medium') {
+    // 50% chance optimal, 50% random
+    if (Math.random() < 0.5) {
+      return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    }
+    // Try to win
+    for (const cell of emptyCells) {
+      const testBoard = [...board];
+      testBoard[cell] = 'O';
+      if (checkWinner(testBoard) === 'O') return cell;
+    }
+    // Block player
+    for (const cell of emptyCells) {
+      const testBoard = [...board];
+      testBoard[cell] = 'X';
+      if (checkWinner(testBoard) === 'X') return cell;
+    }
+    // Take center or corner
+    if (board[4] === null) return 4;
+    const corners = [0, 2, 6, 8].filter(i => board[i] === null);
+    if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)];
+    return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+  }
+  
+  // Hard: Use minimax for optimal play
+  let bestScore = -Infinity;
+  let bestMove = emptyCells[0];
+  
   for (const cell of emptyCells) {
     const testBoard = [...board];
     testBoard[cell] = 'O';
-    if (checkWinner(testBoard) === 'O') return cell;
+    const score = minimax(testBoard, 0, false);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = cell;
+    }
   }
   
-  // Block player from winning
-  for (const cell of emptyCells) {
-    const testBoard = [...board];
-    testBoard[cell] = 'X';
-    if (checkWinner(testBoard) === 'X') return cell;
-  }
-  
-  // Take center if available
-  if (board[4] === null) return 4;
-  
-  // Take a corner
-  const corners = [0, 2, 6, 8].filter(i => board[i] === null);
-  if (corners.length > 0) {
-    return corners[Math.floor(Math.random() * corners.length)];
-  }
-  
-  // Take any available
-  return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+  return bestMove;
 }
+
+const difficultyConfig: Record<Difficulty, { label: string; color: string }> = {
+  easy: { label: 'Easy', color: 'text-green-400' },
+  medium: { label: 'Medium', color: 'text-yellow-400' },
+  hard: { label: 'Hard', color: 'text-red-400' },
+};
 
 export function TicTacToeGame() {
   const navigate = useNavigate();
   const { playTap, vibrate } = useSettings();
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [showDifficultySelect, setShowDifficultySelect] = useState(true);
   const [board, setBoard] = useState<Board>(Array(9).fill(null));
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [scores, setScores] = useState({ player: 0, ai: 0 });
@@ -104,14 +160,14 @@ export function TicTacToeGame() {
 
   // AI move
   const makeAIMove = useCallback((currentBoard: Board) => {
-    const aiMove = getAIMove(currentBoard);
+    const aiMove = getAIMove(currentBoard, difficulty);
     if (aiMove !== -1 && aiMove !== undefined) {
       const newBoard = [...currentBoard];
       newBoard[aiMove] = 'O';
       setBoard(newBoard);
       setIsPlayerTurn(true);
     }
-  }, []);
+  }, [difficulty]);
 
   useEffect(() => {
     if (!isPlayerTurn && !gameOver) {
@@ -160,14 +216,78 @@ export function TicTacToeGame() {
 
   const resultInfo = getResultInfo();
 
+  const selectDifficulty = (diff: Difficulty) => {
+    playTap();
+    vibrate(10);
+    setDifficulty(diff);
+    setShowDifficultySelect(false);
+    setBoard(Array(9).fill(null));
+    setIsPlayerTurn(true);
+    setScores({ player: 0, ai: 0 });
+  };
+
+  const changeDifficulty = () => {
+    playTap();
+    setShowDifficultySelect(true);
+  };
+
   return (
     <div className="min-h-screen pb-24 safe-top">
+      {/* Difficulty Selection */}
+      <AnimatePresence>
+        {showDifficultySelect && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-background flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="w-full max-w-sm bg-card rounded-2xl border border-border p-6 text-center"
+            >
+              <h2 className="font-display text-2xl text-gradient mb-2">Tic Tac Toe</h2>
+              <p className="text-muted-foreground mb-6">Select Difficulty</p>
+              
+              <div className="space-y-3">
+                {(Object.keys(difficultyConfig) as Difficulty[]).map((diff) => (
+                  <button
+                    key={diff}
+                    onClick={() => selectDifficulty(diff)}
+                    className="w-full py-4 rounded-xl bg-muted border border-border hover:border-primary/50 transition-colors"
+                  >
+                    <span className={`font-display text-lg ${difficultyConfig[diff].color}`}>
+                      {difficultyConfig[diff].label}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {diff === 'easy' && 'Random moves - Great for beginners'}
+                      {diff === 'medium' && 'Mixed strategy - Balanced challenge'}
+                      {diff === 'hard' && 'Optimal play - Unbeatable AI'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              
+              <button onClick={goBack} className="mt-4 text-sm text-muted-foreground">
+                ← Back to Games
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-6 pb-4">
         <button onClick={goBack} className="p-2 rounded-xl bg-card touch-target">
           <ArrowLeft className="w-6 h-6 text-muted-foreground" />
         </button>
-        <h1 className="font-display text-xl text-gradient">Tic Tac Toe</h1>
+        <div className="text-center">
+          <h1 className="font-display text-xl text-gradient">Tic Tac Toe</h1>
+          <button onClick={changeDifficulty} className={`text-xs ${difficultyConfig[difficulty].color}`}>
+            {difficultyConfig[difficulty].label} Mode ▾
+          </button>
+        </div>
         <button onClick={resetGame} className="p-2 rounded-xl bg-card touch-target">
           <RotateCcw className="w-6 h-6 text-muted-foreground" />
         </button>

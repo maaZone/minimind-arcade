@@ -1,24 +1,38 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, RotateCcw, ArrowUp, ArrowDown, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '@/contexts/SettingsContext';
 
+type Range = '1-50' | '1-100' | '1-200';
+
+const rangeConfig: Record<Range, { max: number; label: string; color: string }> = {
+  '1-50': { max: 50, label: 'Easy (1-50)', color: 'text-green-400' },
+  '1-100': { max: 100, label: 'Medium (1-100)', color: 'text-yellow-400' },
+  '1-200': { max: 200, label: 'Hard (1-200)', color: 'text-red-400' },
+};
+
 export function NumberGuessGame() {
   const navigate = useNavigate();
   const { playTap, vibrate } = useSettings();
-  const [target, setTarget] = useState(() => Math.floor(Math.random() * 100) + 1);
+  const [range, setRange] = useState<Range>('1-100');
+  const [showRangeSelect, setShowRangeSelect] = useState(true);
+  const [target, setTarget] = useState(0);
   const [guess, setGuess] = useState('');
   const [attempts, setAttempts] = useState<{ value: number; hint: 'higher' | 'lower' | 'correct' }[]>([]);
   const [isWon, setIsWon] = useState(false);
-  const [bestScore, setBestScore] = useState(() => {
-    const saved = localStorage.getItem('numberGuessBest');
-    return saved ? parseInt(saved) : Infinity;
-  });
+  const [bestScore, setBestScore] = useState<number>(Infinity);
+
+  const maxNum = rangeConfig[range].max;
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`numberGuessBest_${range}`);
+    setBestScore(saved ? parseInt(saved) : Infinity);
+  }, [range]);
 
   const handleGuess = () => {
     const num = parseInt(guess);
-    if (isNaN(num) || num < 1 || num > 100) return;
+    if (isNaN(num) || num < 1 || num > maxNum) return;
 
     playTap();
     vibrate(10);
@@ -31,7 +45,7 @@ export function NumberGuessGame() {
       const newAttempts = attempts.length + 1;
       if (newAttempts < bestScore) {
         setBestScore(newAttempts);
-        localStorage.setItem('numberGuessBest', newAttempts.toString());
+        localStorage.setItem(`numberGuessBest_${range}`, newAttempts.toString());
       }
     } else {
       hint = num < target ? 'higher' : 'lower';
@@ -44,10 +58,26 @@ export function NumberGuessGame() {
   const resetGame = () => {
     playTap();
     vibrate(20);
-    setTarget(Math.floor(Math.random() * 100) + 1);
+    setTarget(Math.floor(Math.random() * maxNum) + 1);
     setGuess('');
     setAttempts([]);
     setIsWon(false);
+  };
+
+  const selectRange = (r: Range) => {
+    playTap();
+    vibrate(10);
+    setRange(r);
+    setShowRangeSelect(false);
+    setTarget(Math.floor(Math.random() * rangeConfig[r].max) + 1);
+    setGuess('');
+    setAttempts([]);
+    setIsWon(false);
+  };
+
+  const changeRange = () => {
+    playTap();
+    setShowRangeSelect(true);
   };
 
   const goBack = () => {
@@ -56,14 +86,63 @@ export function NumberGuessGame() {
     navigate('/');
   };
 
+  const config = rangeConfig[range];
+
   return (
     <div className="min-h-screen pb-24 safe-top">
+      {/* Range Selection */}
+      <AnimatePresence>
+        {showRangeSelect && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-background flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="w-full max-w-sm bg-card rounded-2xl border border-border p-6 text-center"
+            >
+              <h2 className="font-display text-2xl text-gradient mb-2">Number Guess</h2>
+              <p className="text-muted-foreground mb-6">Select Difficulty</p>
+              
+              <div className="space-y-3">
+                {(Object.keys(rangeConfig) as Range[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => selectRange(r)}
+                    className="w-full py-4 rounded-xl bg-muted border border-border hover:border-primary/50 transition-colors"
+                  >
+                    <span className={`font-display text-lg ${rangeConfig[r].color}`}>
+                      {rangeConfig[r].label}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Guess from 1 to {rangeConfig[r].max}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              
+              <button onClick={goBack} className="mt-4 text-sm text-muted-foreground">
+                ← Back to Games
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-6 pb-4">
         <button onClick={goBack} className="p-2 rounded-xl bg-card touch-target">
           <ArrowLeft className="w-6 h-6 text-muted-foreground" />
         </button>
-        <h1 className="font-display text-xl text-gradient">Number Guess</h1>
+        <div className="text-center">
+          <h1 className="font-display text-xl text-gradient">Number Guess</h1>
+          <button onClick={changeRange} className={`text-xs ${config.color}`}>
+            {config.label} ▾
+          </button>
+        </div>
         <button onClick={resetGame} className="p-2 rounded-xl bg-card touch-target">
           <RotateCcw className="w-6 h-6 text-muted-foreground" />
         </button>
@@ -87,7 +166,7 @@ export function NumberGuessGame() {
       <div className="px-4">
         <div className="p-6 rounded-2xl bg-card border border-border">
           <p className="text-center text-muted-foreground mb-4">
-            Guess a number between 1 and 100
+            Guess a number between 1 and {maxNum}
           </p>
 
           {/* Input */}
@@ -98,9 +177,9 @@ export function NumberGuessGame() {
                 value={guess}
                 onChange={(e) => setGuess(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleGuess()}
-                placeholder="Enter guess..."
+                placeholder={`1-${maxNum}`}
                 min="1"
-                max="100"
+                max={maxNum}
                 className="flex-1 px-4 py-3 rounded-xl bg-muted border border-border text-foreground 
                   text-center font-display text-xl placeholder:text-muted-foreground
                   focus:outline-none focus:ring-2 focus:ring-primary/50"
